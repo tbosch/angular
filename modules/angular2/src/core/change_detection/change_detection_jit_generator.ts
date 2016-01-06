@@ -338,11 +338,6 @@ export class ChangeDetectorJITGenerator {
     var pipe = this._names.getPipeName(r.selfIndex);
     var pipeName = r.name;
 
-    var init = `
-      if (${pipe} === ${this.changeDetectionUtilVarName}.uninitialized) {
-        ${pipe} = ${this._names.getPipesAccessorName()}.get('${pipeName}');
-      }
-    `;
     var read = `${newValue} = ${pipe}.pipe.transform(${context}, [${argString}]);`;
 
     var contexOrArgCheck = r.args.map((a) => this._names.getChangeName(a));
@@ -362,9 +357,9 @@ export class ChangeDetectorJITGenerator {
     var genCode = r.shouldBeChecked() ? `${read}${check}` : read;
 
     if (r.isUsedByOtherRecord()) {
-      return `${init} if (${condition}) { ${genCode} } else { ${newValue} = ${oldValue}; }`;
+      return `if (${condition}) { ${genCode} } else { ${newValue} = ${oldValue}; }`;
     } else {
-      return `${init} if (${condition}) { ${genCode} }`;
+      return `if (${condition}) { ${genCode} }`;
     }
   }
 

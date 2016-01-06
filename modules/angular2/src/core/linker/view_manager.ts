@@ -1,12 +1,13 @@
 import {
   Injector,
+  IInjector,
   Inject,
   Provider,
   Injectable,
   ResolvedProvider,
   forwardRef
 } from 'angular2/src/core/di';
-import {isPresent, isBlank, isArray} from 'angular2/src/facade/lang';
+import {isPresent, isBlank, isArray, Type} from 'angular2/src/facade/lang';
 import {ListWrapper, StringMapWrapper} from 'angular2/src/facade/collection';
 import {BaseException} from 'angular2/src/facade/exceptions';
 import {AppView, HostViewFactory, flattenNestedViewRenderNodes} from './view';
@@ -27,6 +28,9 @@ import {wtfCreateScope, wtfLeave, WtfScopeFn} from '../profile/profile';
 import {APP_ID} from 'angular2/src/core/application_tokens';
 import {ViewEncapsulation} from 'angular2/src/core/metadata/view';
 import {ViewType} from './view_type';
+import {ResolvedMetadataCache} from 'angular2/src/core/linker/resolved_metadata_cache';
+import {ProtoPipes} from 'angular2/src/core/pipes/pipes';
+import {Pipes} from 'angular2/src/core/pipes/pipes';
 
 /**
  * Service exposing low level API for creating, moving and destroying Views.
@@ -185,7 +189,7 @@ export class AppViewManager_ extends AppViewManager {
   private _nextCompTypeId: number = 0;
 
   constructor(private _renderer: RootRenderer, private _viewListener: AppViewListener,
-              @Inject(APP_ID) private _appId: string) {
+              @Inject(APP_ID) private _appId: string, private _metadataCache: ResolvedMetadataCache) {
     super();
   }
 
@@ -195,7 +199,7 @@ export class AppViewManager_ extends AppViewManager {
 
   getHostElement(hostViewRef: ViewRef_): ElementRef {
     var hostView = hostViewRef.internalView;
-    if (hostView.proto.type !== ViewType.HOST) {
+    if (hostView.type !== ViewType.HOST) {
       throw new BaseException('This operation is only allowed on host views');
     }
     return hostView.appElements[0].ref;
@@ -228,8 +232,7 @@ export class AppViewManager_ extends AppViewManager {
     var s = this._createRootHostViewScope();
     var hostViewFactory = hostViewFactoryRef.internalHostViewFactory;
     var selector = isPresent(overrideSelector) ? overrideSelector : hostViewFactory.selector;
-    var view = hostViewFactory.viewFactory(this._renderer, this, null, projectableNodes, selector,
-                                           null, injector);
+    var view = hostViewFactory.viewFactory(this._renderer, this, injector, null, projectableNodes, selector);
     return wtfLeave(s, view.ref);
   }
 
@@ -253,8 +256,8 @@ export class AppViewManager_ extends AppViewManager {
     var s = this._createEmbeddedViewInContainerScope();
     var contextEl = templateRef.elementRef.internalElement;
     var view: AppView =
-        contextEl.embeddedViewFactory(contextEl.parentView.renderer, this, contextEl,
-                                      contextEl.parentView.projectableNodes, null, null, null);
+        templateRef.internalViewFactory(contextEl.parentView.renderer, this, contextEl.getEmbeddedViewInjector(), contextEl,
+                                      contextEl.parentView.projectableNodes, null);
     this._attachViewToContainer(view, viewContainerLocation.internalElement, index);
     return wtfLeave(s, view.ref);
   }
@@ -271,9 +274,12 @@ export class AppViewManager_ extends AppViewManager {
     // TODO(tbosch): This should be specifiable via an additional argument!
     var contextEl = viewContainerLocation.internalElement;
     var hostViewFactory = hostViewFactoryRef.internalHostViewFactory;
+
+    var childInjector = dynamicallyCreatedProviders.length > 0 ? new MultiInjector([Injector.fromResolvedProviders(dynamicallyCreatedProviders), contextEl.getDefaultInjector()]) : contextEl;
+
     var view = hostViewFactory.viewFactory(
-        contextEl.parentView.renderer, contextEl.parentView.viewManager, contextEl,
-        projectableNodes, null, dynamicallyCreatedProviders, null);
+        contextEl.parentView.renderer, contextEl.parentView.viewManager, childInjector, contextEl,
+        projectableNodes, null);
     this._attachViewToContainer(view, viewContainerLocation.internalElement, index);
     return wtfLeave(s, view.ref);
   }
@@ -322,8 +328,21 @@ export class AppViewManager_ extends AppViewManager {
                                    styles);
   }
 
+  /** @internal */
+  createPipes(hostInjector: Injector, pipes:Type[]):Pipes {
+    var protoPipes = null;
+    if (isPresent(pipes) && pipes.length > 0) {
+      var boundPipes = ListWrapper.createFixedSize(pipes.length);
+      for (var i = 0; i < pipes.length; i++) {
+        boundPipes[i] = this._metadataCache.getResolvedPipeMetadata(pipes[i]);
+      }
+      protoPipes = ProtoPipes.fromProviders(boundPipes);
+    }
+    return new Pipes(protoPipes, hostInjector);
+  }
+
   private _attachViewToContainer(view: AppView, vcAppElement: AppElement, viewIndex: number) {
-    if (view.proto.type === ViewType.COMPONENT) {
+    if (view.type === ViewType.COMPONENT) {
       throw new BaseException(`Component views can't be moved!`);
     }
     var nestedViews = vcAppElement.nestedViews;
@@ -354,15 +373,15 @@ export class AppViewManager_ extends AppViewManager {
     // TODO: This is only needed when a view is destroyed,
     // not when it is detached for reordering with ng-for...
     vcAppElement.parentView.changeDetector.addContentChild(view.changeDetector);
-    vcAppElement.traverseAndSetQueriesAsDirty();
+    view.notifyAfterMove();
   }
 
   private _detachViewInContainer(vcAppElement: AppElement, viewIndex: number): AppView {
     var view = ListWrapper.removeAt(vcAppElement.nestedViews, viewIndex);
-    if (view.proto.type === ViewType.COMPONENT) {
+    if (view.type === ViewType.COMPONENT) {
       throw new BaseException(`Component views can't be moved!`);
     }
-    vcAppElement.traverseAndSetQueriesAsDirty();
+    view.notifyAfterMove();
 
     view.renderer.detachView(flattenNestedViewRenderNodes(view.rootNodesOrAppElements));
 
@@ -370,5 +389,31 @@ export class AppViewManager_ extends AppViewManager {
     // not when it is detached for reordering with ng-for...
     view.changeDetector.remove();
     return view;
+  }
+}
+
+// TODO: Change Injector so that it is able to use an IInjector
+// (when we removed functionality there...)
+class MultiInjector implements IInjector {
+  constructor(private _delegates: IInjector[]) {}
+
+  get(token: any):any {
+    var result = this.getOptional(token);
+    if (isBlank(result)) {
+      // TODO: Proper error handling!
+      throw new BaseException(`Could not inject ${token}`);
+    }
+    return result
+  }
+
+  getOptional(token: any): any {
+    var result;
+    for (var i=0; i<this._delegates.length; i++) {
+      result = this._delegates[i].getOptional(token);
+      if (isPresent(result)) {
+        break;
+      }
+    }
+    return result;
   }
 }

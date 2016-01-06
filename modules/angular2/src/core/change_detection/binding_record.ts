@@ -16,7 +16,7 @@ const EVENT = "event";
 const HOST_EVENT = "hostEvent";
 
 export class BindingTarget {
-  constructor(public mode: string, public elementIndex: number, public name: string,
+  constructor(public mode: string, public nodeIndex: number, public name: string,
               public unit: string, public debug: string) {}
 
   isDirective(): boolean { return this.mode === DIRECTIVE; }
@@ -96,38 +96,38 @@ export class BindingRecord {
 
 
 
-  static createForHostProperty(directiveIndex: DirectiveIndex, ast: AST,
+  static createForHostProperty(directiveIndex: DirectiveIndex, nodeIndex: number, ast: AST,
                                propertyName: string): BindingRecord {
-    var t = new BindingTarget(ELEMENT_PROPERTY, directiveIndex.elementIndex, propertyName, null,
+    var t = new BindingTarget(ELEMENT_PROPERTY, nodeIndex, propertyName, null,
                               ast.toString());
     return new BindingRecord(BINDING, t, directiveIndex, ast, null, null, null);
   }
 
-  static createForHostAttribute(directiveIndex: DirectiveIndex, ast: AST,
+  static createForHostAttribute(directiveIndex: DirectiveIndex, nodeIndex: number, ast: AST,
                                 attributeName: string): BindingRecord {
-    var t = new BindingTarget(ELEMENT_ATTRIBUTE, directiveIndex.elementIndex, attributeName, null,
+    var t = new BindingTarget(ELEMENT_ATTRIBUTE, nodeIndex, attributeName, null,
                               ast.toString());
     return new BindingRecord(BINDING, t, directiveIndex, ast, null, null, null);
   }
 
-  static createForHostClass(directiveIndex: DirectiveIndex, ast: AST,
+  static createForHostClass(directiveIndex: DirectiveIndex, nodeIndex: number, ast: AST,
                             className: string): BindingRecord {
-    var t = new BindingTarget(ELEMENT_CLASS, directiveIndex.elementIndex, className, null,
+    var t = new BindingTarget(ELEMENT_CLASS, nodeIndex, className, null,
                               ast.toString());
     return new BindingRecord(BINDING, t, directiveIndex, ast, null, null, null);
   }
 
-  static createForHostStyle(directiveIndex: DirectiveIndex, ast: AST, styleName: string,
+  static createForHostStyle(directiveIndex: DirectiveIndex, nodeIndex: number, ast: AST, styleName: string,
                             unit: string): BindingRecord {
-    var t = new BindingTarget(ELEMENT_STYLE, directiveIndex.elementIndex, styleName, unit,
+    var t = new BindingTarget(ELEMENT_STYLE, nodeIndex, styleName, unit,
                               ast.toString());
     return new BindingRecord(BINDING, t, directiveIndex, ast, null, null, null);
   }
 
 
 
-  static createForTextNode(ast: AST, elementIndex: number): BindingRecord {
-    var t = new BindingTarget(TEXT_NODE, elementIndex, null, null, ast.toString());
+  static createForTextNode(ast: AST, nodeIndex: number): BindingRecord {
+    var t = new BindingTarget(TEXT_NODE, nodeIndex, null, null, ast.toString());
     return new BindingRecord(BINDING, t, 0, ast, null, null, null);
   }
 

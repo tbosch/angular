@@ -162,17 +162,3 @@ export function addAll(source: any[], target: any[]) {
     target.push(source[i]);
   }
 }
-
-export function flattenArray(source: any[], target: any[]): any[] {
-  if (isPresent(source)) {
-    for (var i = 0; i < source.length; i++) {
-      var item = source[i];
-      if (isArray(item)) {
-        flattenArray(item, target);
-      } else {
-        target.push(item);
-      }
-    }
-  }
-  return target;
-}

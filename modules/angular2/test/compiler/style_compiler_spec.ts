@@ -305,7 +305,7 @@ function testableExpression(source: SourceExpression): SourceModule {
 }
 
 function testableModule(sourceModule: SourceModule): SourceModule {
-  var testableSource = `${sourceModule.sourceWithModuleRefs}
+  var testableSource = `${sourceModule.sourceWithIdentifierRefs}
   ${codeGenValueFn(['_'], 'STYLES', '_run')};
   ${codeGenExportVariable('run')}_run;`;
   return new SourceModule(sourceModule.moduleUrl, testableSource);

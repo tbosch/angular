@@ -7,7 +7,7 @@ import {
 // TODO(tbosch): Move the corresponding code into angular2/src/compiler once
 // the new compiler is done.
 export class Codegen {
-  constructor(moduleAlias: string) {}
+  constructor() {}
   generate(typeName: string, changeDetectorTypeName: string, def: ChangeDetectorDefinition): void {
     throw "Not implemented in JS";
   }

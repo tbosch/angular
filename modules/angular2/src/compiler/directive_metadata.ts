@@ -32,20 +32,122 @@ export abstract class CompileMetadataWithType {
   get type(): CompileTypeMetadata { return unimplemented(); }
 }
 
+export class CompileIdentifierMetadata {
+  runtime: any;
+  name: string;
+  moduleUrl: string;
+  constructor({runtime, name, moduleUrl}:
+                  {runtime?: any, name?: string, moduleUrl?: string} = {}) {
+    this.runtime = runtime;
+    this.name = name;
+    this.moduleUrl = moduleUrl;
+  }
+}
+
+export class CompileDiDependencyMetadata {
+  isAttribute: boolean;
+  isSelf: boolean;
+  isHost: boolean;
+  isSkipSelf: boolean;
+  isOptional: boolean;
+  query: CompileQueryMetadata;
+  viewQuery: CompileQueryMetadata;
+  token: CompileIdentifierMetadata | string;
+
+  constructor({isAttribute, isSelf, isHost, isSkipSelf, isOptional, query, viewQuery, token}:
+               {
+                  isAttribute?: boolean,
+                  isSelf?: boolean,
+                  isHost?: boolean,
+                  isSkipSelf?: boolean,
+                  isOptional?: boolean,
+                  query?: CompileQueryMetadata,
+                  viewQuery?: CompileQueryMetadata,
+                  token?: CompileIdentifierMetadata | string
+              } = {}) {
+    this.isAttribute = normalizeBool(isAttribute);
+    this.isSelf = normalizeBool(isSelf);
+    this.isHost = normalizeBool(isHost);
+    this.isSkipSelf = normalizeBool(isSkipSelf);
+    this.isOptional = normalizeBool(isOptional);
+    this.query = query;
+    this.viewQuery = viewQuery;
+    this.token = token;
+  }
+}
+
+export class CompileProviderMetadata {
+  token: CompileIdentifierMetadata | string;
+  useClass: CompileTypeMetadata;
+  useValue: any;
+  useExisting: CompileIdentifierMetadata | string;
+  useFactory: CompileFactoryMetadata;
+  deps: CompileDiDependencyMetadata[];
+  multi: boolean;
+
+  constructor({
+    token,
+    useClass,
+    useValue,
+    useExisting,
+    useFactory,
+    deps,
+    multi
+  }: {
+    token?: CompileIdentifierMetadata | string,
+    useClass?: CompileTypeMetadata,
+    useValue?: any,
+    useExisting?: CompileIdentifierMetadata | string,
+    useFactory?: CompileFactoryMetadata,
+    deps?: CompileDiDependencyMetadata[],
+    multi?: boolean
+  }) {
+    this.token = token;
+    this.useClass = useClass;
+    this.useValue = useValue;
+    this.useExisting = useExisting;
+    this.useFactory = useFactory;
+    this.deps = deps;
+    this.multi = multi;
+  }
+}
+
+export class CompileFactoryMetadata implements CompileIdentifierMetadata {
+  runtime: Function;
+  name: string;
+  moduleUrl: string;
+  diDeps: CompileDiDependencyMetadata[];
+
+  constructor({runtime, name, moduleUrl, diDeps}:{
+    runtime?: Function,
+    name?: string,
+    moduleUrl?: string,
+    diDeps?: CompileDiDependencyMetadata[]
+  }) {
+    this.runtime = runtime;
+    this.name = name;
+    this.moduleUrl = moduleUrl;
+    this.diDeps = diDeps;
+  }
+}
+
 /**
  * Metadata regarding compilation of a type.
  */
-export class CompileTypeMetadata {
+export class CompileTypeMetadata implements CompileIdentifierMetadata {
   runtime: Type;
   name: string;
   moduleUrl: string;
   isHost: boolean;
-  constructor({runtime, name, moduleUrl, isHost}:
-                  {runtime?: Type, name?: string, moduleUrl?: string, isHost?: boolean} = {}) {
+  diDeps: CompileDiDependencyMetadata[];
+
+  constructor({runtime, name, moduleUrl, isHost, diDeps}:
+                  {runtime?: Type, name?: string, moduleUrl?: string, isHost?: boolean, diDeps?: CompileDiDependencyMetadata[]} = {}) {
     this.runtime = runtime;
     this.name = name;
     this.moduleUrl = moduleUrl;
     this.isHost = normalizeBool(isHost);
+    this.diDeps = diDeps;
   }
 
   static fromJson(data: {[key: string]: any}): CompileTypeMetadata {
@@ -61,6 +163,26 @@ export class CompileTypeMetadata {
       'isHost': this.isHost
     };
   }
+}
+
+export class CompileQueryMetadata {
+  selectors: Array<CompileIdentifierMetadata | string>;
+  descendants: boolean;
+  first: boolean;
+  propertyName: string;
+
+  constructor({selectors,
+              descendants, first, propertyName}: {
+              selectors?: Array<CompileIdentifierMetadata | string>,
+              descendants?: boolean, first?: boolean,
+              propertyName?: string
+              } = {}) {
+    this.selectors = selectors;
+    this.descendants = descendants;
+    this.first = first;
+    this.propertyName = propertyName;
+  }
+
 }
 
 /**
@@ -120,7 +242,7 @@ export class CompileTemplateMetadata {
  */
 export class CompileDirectiveMetadata implements CompileMetadataWithType {
   static create({type, isComponent, dynamicLoadable, selector, exportAs, changeDetection, inputs,
-                 outputs, host, lifecycleHooks, template}: {
+                 outputs, host, lifecycleHooks, providers, viewProviders, queries, viewQueries, template}: {
     type?: CompileTypeMetadata,
     isComponent?: boolean,
     dynamicLoadable?: boolean,
@@ -131,6 +253,10 @@ export class CompileDirectiveMetadata implements CompileMetadataWithType {
     outputs?: string[],
     host?: {[key: string]: string},
     lifecycleHooks?: LifecycleHooks[],
+    providers?: Array<CompileProviderMetadata | CompileTypeMetadata | any[]>,
+    viewProviders?: Array<CompileProviderMetadata | CompileTypeMetadata | any[]>,
+    queries?: CompileQueryMetadata[],
+    viewQueries?: CompileQueryMetadata[],
     template?: CompileTemplateMetadata
   } = {}): CompileDirectiveMetadata {
     var hostListeners: {[key: string]: string} = {};
@@ -180,6 +306,10 @@ export class CompileDirectiveMetadata implements CompileMetadataWithType {
       hostProperties: hostProperties,
       hostAttributes: hostAttributes,
       lifecycleHooks: isPresent(lifecycleHooks) ? lifecycleHooks : [],
+      providers: providers,
+      viewProviders: viewProviders,
+      queries: queries,
+      viewQueries: viewQueries,
       template: template
     });
   }
@@ -196,9 +326,14 @@ export class CompileDirectiveMetadata implements CompileMetadataWithType {
   hostProperties: {[key: string]: string};
   hostAttributes: {[key: string]: string};
   lifecycleHooks: LifecycleHooks[];
+  providers: Array<CompileProviderMetadata | CompileTypeMetadata | any[]>;
+  viewProviders: Array<CompileProviderMetadata | CompileTypeMetadata | any[]>;
+  queries: CompileQueryMetadata[];
+  viewQueries: CompileQueryMetadata[];
+
   template: CompileTemplateMetadata;
   constructor({type, isComponent, dynamicLoadable, selector, exportAs, changeDetection, inputs,
-               outputs, hostListeners, hostProperties, hostAttributes, lifecycleHooks, template}: {
+               outputs, hostListeners, hostProperties, hostAttributes, lifecycleHooks, providers, viewProviders, queries, viewQueries, template}: {
     type?: CompileTypeMetadata,
     isComponent?: boolean,
     dynamicLoadable?: boolean,
@@ -211,6 +346,10 @@ export class CompileDirectiveMetadata implements CompileMetadataWithType {
     hostProperties?: {[key: string]: string},
     hostAttributes?: {[key: string]: string},
     lifecycleHooks?: LifecycleHooks[],
+    providers?: Array<CompileProviderMetadata | CompileTypeMetadata | any[]>,
+    viewProviders?: Array<CompileProviderMetadata | CompileTypeMetadata | any[]>,
+    queries?: CompileQueryMetadata[],
+    viewQueries?: CompileQueryMetadata[],
     template?: CompileTemplateMetadata
   } = {}) {
     this.type = type;
@@ -225,6 +364,10 @@ export class CompileDirectiveMetadata implements CompileMetadataWithType {
     this.hostProperties = hostProperties;
     this.hostAttributes = hostAttributes;
     this.lifecycleHooks = lifecycleHooks;
+    this.providers = providers;
+    this.viewProviders = viewProviders;
+    this.queries = queries;
+    this.viewQueries = viewQueries;
     this.template = template;
   }
 
@@ -293,7 +436,11 @@ export function createHostComponentMeta(componentType: CompileTypeMetadata,
     lifecycleHooks: [],
     isComponent: true,
     dynamicLoadable: false,
-    selector: '*'
+    selector: '*',
+    providers: [],
+    viewProviders: [],
+    queries: [],
+    viewQueries: []
   });
 }
 

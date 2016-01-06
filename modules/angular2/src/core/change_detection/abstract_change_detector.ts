@@ -332,7 +332,7 @@ export class AbstractChangeDetector<T> implements ChangeDetector {
   private _throwError(exception: any, stack: any): void {
     var error;
     try {
-      var c = this.dispatcher.getDebugContext(null, this._currentBinding().elementIndex, null);
+      var c = this.dispatcher.getDebugContext(null, this._currentBinding().nodeIndex, null);
       var context = isPresent(c) ? new _Context(c.element, c.componentElement, c.context, c.locals,
                                                 c.injector, this._currentBinding().debug) :
                                    null;

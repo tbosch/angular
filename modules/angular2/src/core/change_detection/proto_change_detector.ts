@@ -75,7 +75,7 @@ export function createEventRecords(definition: ChangeDetectorDefinition): EventB
   return definition.eventRecords.map(er => {
     var records = _ConvertAstIntoProtoRecords.create(er, varNames);
     var dirIndex = er.implicitReceiver instanceof DirectiveIndex ? er.implicitReceiver : null;
-    return new EventBinding(er.target.name, er.target.elementIndex, dirIndex, records);
+    return new EventBinding(er.target.name, er.target.nodeIndex, dirIndex, records);
   });
 }
 

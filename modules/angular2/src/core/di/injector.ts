@@ -51,6 +51,7 @@ function canSee(src: Visibility, dst: Visibility): boolean {
 
 export interface ProtoInjectorStrategy {
   getProviderAtIndex(index: number): ResolvedProvider;
+  getVisibilityAtIndex(index: number): ResolvedProvider;
   createInjectorStrategy(inj: Injector): InjectorStrategy;
 }
 
@@ -157,6 +158,20 @@ export class ProtoInjectorInlineStrategy implements ProtoInjectorStrategy {
     throw new OutOfBoundsError(index);
   }
 
+  getVisibilityAtIndex(index: number): any {
+    if (index == 0) return this.visibility0;
+    if (index == 1) return this.visibility1;
+    if (index == 2) return this.visibility2;
+    if (index == 3) return this.visibility3;
+    if (index == 4) return this.visibility4;
+    if (index == 5) return this.visibility5;
+    if (index == 6) return this.visibility6;
+    if (index == 7) return this.visibility7;
+    if (index == 8) return this.visibility8;
+    if (index == 9) return this.visibility9;
+    throw new OutOfBoundsError(index);
+  }
+
   createInjectorStrategy(injector: Injector): InjectorStrategy {
     return new InjectorInlineStrategy(injector, this);
   }
@@ -188,6 +203,13 @@ export class ProtoInjectorDynamicStrategy implements ProtoInjectorStrategy {
     return this.providers[index];
   }
 
+  getVisibilityAtIndex(index: number): any {
+    if (index < 0 || index >= this.visibilities.length) {
+      throw new OutOfBoundsError(index);
+    }
+    return this.visibilities[index];
+  }
+
   createInjectorStrategy(ei: Injector): InjectorStrategy {
     return new InjectorDynamicStrategy(this, ei);
   }
@@ -211,6 +233,8 @@ export class ProtoInjector {
   }
 
   getProviderAtIndex(index: number): any { return this._strategy.getProviderAtIndex(index); }
+
+  getVisibilityAtIndex(index:number):Visibility { return this._strategy.getVisibilityAtIndex(index); }
 }
 
 
@@ -384,6 +408,12 @@ export interface DependencyProvider {
   getDependency(injector: Injector, provider: ResolvedProvider, dependency: Dependency): any;
 }
 
+// TODO: Rename this to Injector and Injector to Injector_
+export abstract class IInjector {
+  abstract get(token: any): any;
+  abstract getOptional(token: any): any;
+}
+
 /**
  * A dependency injection container used for instantiating objects and resolving dependencies.
  *
@@ -416,7 +446,7 @@ export interface DependencyProvider {
  * Notice, we don't use the `new` operator because we explicitly want to have the `Injector`
  * resolve all of the object's dependencies automatically.
  */
-export class Injector {
+export class Injector implements IInjector {
   /**
    * Turns an array of provider definitions into an array of resolved providers.
    *

@@ -5,7 +5,7 @@ import {ChangeDetectionStrategy} from './constants';
 import {ChangeDetectorRef} from './change_detector_ref';
 
 export class DebugContext {
-  constructor(public element: any, public componentElement: any, public directive: any,
+  constructor(public element: any, public componentElement: any,
               public context: any, public locals: any, public injector: any) {}
 }
 
@@ -17,7 +17,6 @@ export interface ChangeDispatcher {
   notifyAfterViewChecked(): void;
   notifyOnDestroy(): void;
   getDetectorFor(directiveIndex: DirectiveIndex): ChangeDetector;
-  getDirectiveFor(directiveIndex: DirectiveIndex): any;
 }
 
 export interface ChangeDetector {

@@ -142,14 +142,16 @@ export class DebugElement_ extends DebugElement {
     if (!isPresent(this._appElement)) {
       return false;
     }
-    return this._appElement.hasDirective(type);
+    var injector = this._appElement.getDefaultInjector();
+    var parentInjector = isPresent(this._appElement.parent) ? this._appElement.parent.getDefaultInjector() : this._appElement.parentView.parentInjector;
+    return isPresent(injector.getOptional(type)) && isBlank(injector.getOptional(parentInjector));
   }
 
   inject(type: Type): any {
     if (!isPresent(this._appElement)) {
       return null;
     }
-    return this._appElement.get(type);
+    return this._appElement.getDefaultInjector().getOptional(type);
   }
 
   getLocal(name: string): any { return this._appElement.parentView.locals.get(name); }

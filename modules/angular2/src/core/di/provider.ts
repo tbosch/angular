@@ -523,7 +523,7 @@ export function resolveFactory(provider: Provider): ResolvedFactory {
     resolvedDeps = [Dependency.fromKey(Key.get(provider.useExisting))];
   } else if (isPresent(provider.useFactory)) {
     factoryFn = provider.useFactory;
-    resolvedDeps = _constructDependencies(provider.useFactory, provider.dependencies);
+    resolvedDeps = constructDependencies(provider.useFactory, provider.dependencies);
   } else {
     factoryFn = () => provider.useValue;
     resolvedDeps = _EMPTY_LIST;
@@ -609,7 +609,7 @@ function _normalizeProviders(providers: Array<Type | Provider | ProviderBuilder 
   return res;
 }
 
-function _constructDependencies(factoryFunction: Function, dependencies: any[]): Dependency[] {
+export function constructDependencies(factoryFunction: Function, dependencies: any[]): Dependency[] {
   if (isBlank(dependencies)) {
     return _dependenciesFor(factoryFunction);
   } else {

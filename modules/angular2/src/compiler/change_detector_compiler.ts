@@ -1,5 +1,5 @@
-import {CompileTypeMetadata} from './directive_metadata';
-import {SourceExpressions, moduleRef} from './source_module';
+import {CompileTypeMetadata, CompileIdentifierMetadata} from './directive_metadata';
+import {SourceExpressions, IdentifierStore} from './source_module';
 import {
   ChangeDetectorJITGenerator
 } from 'angular2/src/core/change_detection/change_detection_jit_generator';
@@ -22,24 +22,21 @@ import {Codegen} from 'angular2/src/transform/template_compiler/change_detector_
 import {MODULE_SUFFIX} from './util';
 import {Injectable} from 'angular2/src/core/di';
 
-const ABSTRACT_CHANGE_DETECTOR = "AbstractChangeDetector";
-const UTIL = "ChangeDetectionUtil";
-const CHANGE_DETECTOR_STATE = "ChangeDetectorState";
-
-export const CHANGE_DETECTION_JIT_IMPORTS = CONST_EXPR({
-  'AbstractChangeDetector': AbstractChangeDetector,
-  'ChangeDetectionUtil': ChangeDetectionUtil,
-  'ChangeDetectorState': ChangeDetectorState
+var ABSTRACT_CHANGE_DETECTOR_IDENTIFIER = new CompileIdentifierMetadata({
+    name: 'AbstractChangeDetector',
+    moduleUrl: `package:angular2/src/core/change_detection/abstract_change_detector${MODULE_SUFFIX}`,
+    runtime: AbstractChangeDetector
 });
-
-var ABSTRACT_CHANGE_DETECTOR_MODULE = moduleRef(
-    `package:angular2/src/core/change_detection/abstract_change_detector${MODULE_SUFFIX}`);
-var UTIL_MODULE =
-    moduleRef(`package:angular2/src/core/change_detection/change_detection_util${MODULE_SUFFIX}`);
-var PREGEN_PROTO_CHANGE_DETECTOR_MODULE = moduleRef(
-    `package:angular2/src/core/change_detection/pregen_proto_change_detector${MODULE_SUFFIX}`);
-var CONSTANTS_MODULE =
-    moduleRef(`package:angular2/src/core/change_detection/constants${MODULE_SUFFIX}`);
+var UTIL_IDENTIFIER = new CompileIdentifierMetadata({
+    name: 'ChangeDetectionUtil',
+    moduleUrl: `package:angular2/src/core/change_detection/change_detection_util${MODULE_SUFFIX}`,
+    runtime: ChangeDetectionUtil
+});
+var CHANGE_DETECTOR_STATE_IDENTIFIER = new CompileIdentifierMetadata({
+  name: 'ChangeDetectorState',
+  moduleUrl: `package:angular2/src/core/change_detection/constants${MODULE_SUFFIX}`,
+  runtime: ChangeDetectorState
+});
 
 @Injectable()
 export class ChangeDetectionCompiler {
@@ -59,7 +56,7 @@ export class ChangeDetectionCompiler {
   }
 
   compileComponentCodeGen(componentType: CompileTypeMetadata, strategy: ChangeDetectionStrategy,
-                          parsedTemplate: TemplateAst[]): SourceExpressions {
+                          parsedTemplate: TemplateAst[], identifierStore: IdentifierStore): SourceExpressions {
     var changeDetectorDefinitions =
         createChangeDetectorDefinitions(componentType, strategy, this._genConfig, parsedTemplate);
     var factories = [];
@@ -71,19 +68,19 @@ export class ChangeDetectionCompiler {
       // suffix
       // and have the same API for calling them!
       if (IS_DART) {
-        codegen = new Codegen(PREGEN_PROTO_CHANGE_DETECTOR_MODULE);
+        codegen = new Codegen();
         var className = `_${definition.id}`;
         var typeRef = (index === 0 && componentType.isHost) ?
                           'dynamic' :
-                          `${moduleRef(componentType.moduleUrl)}${componentType.name}`;
+                          `${identifierStore.store(componentType)}`;
         codegen.generate(typeRef, className, definition);
         factories.push(`${className}.newChangeDetector`);
         sourcePart = codegen.toString();
       } else {
         codegen = new ChangeDetectorJITGenerator(
-            definition, `${UTIL_MODULE}${UTIL}`,
-            `${ABSTRACT_CHANGE_DETECTOR_MODULE}${ABSTRACT_CHANGE_DETECTOR}`,
-            `${CONSTANTS_MODULE}${CHANGE_DETECTOR_STATE}`);
+            definition, `${identifierStore.store(UTIL_IDENTIFIER)}`,
+            `${identifierStore.store(ABSTRACT_CHANGE_DETECTOR_IDENTIFIER)}`,
+            `${identifierStore.store(CHANGE_DETECTOR_STATE_IDENTIFIER)}`);
         factories.push(`function() { return new ${codegen.typeName}(); }`);
         sourcePart = codegen.generateSource();
       }

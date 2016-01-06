@@ -30,15 +30,7 @@ export class Locals {
   }
 
   set(name: string, value: any): void {
-    // TODO(rado): consider removing this check if we can guarantee this is not
-    // exposed to the public API.
-    // TODO: vsavkin maybe it should check only the local map
-    if (this.current.has(name)) {
-      this.current.set(name, value);
-    } else {
-      throw new BaseException(
-          `Setting of new keys post-construction is not supported. Key: ${name}.`);
-    }
+    this.current.set(name, value);
   }
 
   clearLocalValues(): void { MapWrapper.clearValues(this.current); }

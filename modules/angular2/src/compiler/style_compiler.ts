@@ -1,5 +1,5 @@
-import {CompileTypeMetadata, CompileTemplateMetadata} from './directive_metadata';
-import {SourceModule, SourceExpression, moduleRef} from './source_module';
+import {CompileTypeMetadata, CompileTemplateMetadata, CompileIdentifierMetadata} from './directive_metadata';
+import {SourceModule, SourceExpression, IdentifierStore} from './source_module';
 import {ViewEncapsulation} from 'angular2/src/core/metadata/view';
 import {XHR} from 'angular2/src/compiler/xhr';
 import {IS_DART, StringWrapper, isBlank} from 'angular2/src/facade/lang';
@@ -33,20 +33,22 @@ export class StyleCompiler {
                             template.encapsulation === ViewEncapsulation.Emulated);
   }
 
-  compileComponentCodeGen(template: CompileTemplateMetadata): SourceExpression {
+  compileComponentCodeGen(template: CompileTemplateMetadata, identifierStore: IdentifierStore): SourceExpression {
     var shim = template.encapsulation === ViewEncapsulation.Emulated;
-    return this._styleCodeGen(template.styles, template.styleUrls, shim);
+    return this._styleCodeGen(template.styles, template.styleUrls, shim, identifierStore);
   }
 
-  compileStylesheetCodeGen(stylesheetUrl: string, cssText: string): SourceModule[] {
+  compileStylesheetCodeGen(stylesheetUrl: string, cssText: string, identifierStore: IdentifierStore): SourceModule {
     var styleWithImports = extractStyleUrls(this._urlResolver, stylesheetUrl, cssText);
-    return [
-      this._styleModule(
+    return this._styleModule(
           stylesheetUrl, false,
-          this._styleCodeGen([styleWithImports.style], styleWithImports.styleUrls, false)),
-      this._styleModule(stylesheetUrl, true, this._styleCodeGen([styleWithImports.style],
-                                                                styleWithImports.styleUrls, true))
-    ];
+          this._styleCodeGen([styleWithImports.style], styleWithImports.styleUrls, false, identifierStore));
+  }
+
+  compileShimStylesheetCodeGen(stylesheetUrl: string, cssText: string, identifierStore: IdentifierStore): SourceModule {
+    var styleWithImports = extractStyleUrls(this._urlResolver, stylesheetUrl, cssText);
+    return this._styleModule(stylesheetUrl, true, this._styleCodeGen([styleWithImports.style],
+                                                              styleWithImports.styleUrls, true, identifierStore));
   }
 
   clearCache() { this._styleCache.clear(); }
@@ -74,14 +76,15 @@ export class StyleCompiler {
     });
   }
 
-  private _styleCodeGen(plainStyles: string[], absUrls: string[], shim: boolean): SourceExpression {
+  private _styleCodeGen(plainStyles: string[], absUrls: string[], shim: boolean, identifierStore: IdentifierStore): SourceExpression {
     var arrayPrefix = IS_DART ? `const` : '';
     var styleExpressions = plainStyles.map(
         plainStyle => escapeSingleQuoteString(this._shimIfNeeded(plainStyle, shim)));
 
     for (var i = 0; i < absUrls.length; i++) {
       var moduleUrl = this._createModuleUrl(absUrls[i], shim);
-      styleExpressions.push(`${moduleRef(moduleUrl)}STYLES`);
+      var identifier = new CompileIdentifierMetadata({name: 'STYLES', moduleUrl: moduleUrl});
+      styleExpressions.push(identifierStore.store(identifier));
     }
     var expressionSource = `${arrayPrefix} [${styleExpressions.join(',')}]`;
     return new SourceExpression([], expressionSource);

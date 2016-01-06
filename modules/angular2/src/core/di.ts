@@ -18,7 +18,8 @@ export {
 export * from './di/decorators';
 
 export {forwardRef, resolveForwardRef, ForwardRefFn} from './di/forward_ref';
-export {Injector} from './di/injector';
+
+export {Injector, IInjector} from './di/injector';
 export {
   Binding,
   ProviderBuilder,

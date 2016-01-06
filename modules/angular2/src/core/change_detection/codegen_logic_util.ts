@@ -128,7 +128,7 @@ export class CodegenLogicUtil {
       if (isBlank(b)) return "null";
 
       var debug = genDebugInfo ? codify(b.debug) : "null";
-      return `${this._utilName}.bindingTarget(${codify(b.mode)}, ${b.elementIndex}, ${codify(b.name)}, ${codify(b.unit)}, ${debug})`;
+      return `${this._utilName}.bindingTarget(${codify(b.mode)}, ${b.nodeIndex}, ${codify(b.name)}, ${codify(b.unit)}, ${debug})`;
     });
     return `[${bs.join(", ")}]`;
   }
@@ -156,7 +156,6 @@ export class CodegenLogicUtil {
     for (var i = 0; i < directiveRecords.length; ++i) {
       var r = directiveRecords[i];
       var dirVarName = this._names.getDirectiveName(r.directiveIndex);
-      res.push(`${dirVarName} = ${this._genReadDirective(i)};`);
       if (isPresent(r.outputs)) {
         r.outputs.forEach(output => {
           var eventHandlerExpr = this._genEventHandler(r.directiveIndex.elementIndex, output[1]);

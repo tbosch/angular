@@ -21,7 +21,8 @@ import {
   CompileTypeMetadata,
   CompileTemplateMetadata,
   CompilePipeMetadata,
-  CompileMetadataWithType
+  CompileMetadataWithType,
+  CompileIdentifierMetadata
 } from './directive_metadata';
 import {
   TemplateAst,
@@ -40,16 +41,9 @@ import {
   templateVisitAll
 } from './template_ast';
 import {Injectable} from 'angular2/src/core/di';
-import {SourceModule, moduleRef, SourceExpression} from './source_module';
-import {ChangeDetectionCompiler, CHANGE_DETECTION_JIT_IMPORTS} from './change_detector_compiler';
+import {SourceModule, SourceWithImports, IdentifierStore, SourceExpression} from './source_module';
 import {StyleCompiler} from './style_compiler';
-import {ViewCompiler, VIEW_JIT_IMPORTS} from './view_compiler';
-import {
-  ProtoViewCompiler,
-  APP_VIEW_MODULE_REF,
-  CompileProtoView,
-  PROTO_VIEW_JIT_IMPORTS
-} from './proto_view_compiler';
+import {ViewCompiler, APP_VIEW_MODULE_URL} from './view_compiler';
 import {TemplateParser, PipeCollector} from './template_parser';
 import {TemplateNormalizer} from './template_normalizer';
 import {RuntimeMetadataResolver} from './runtime_metadata';
@@ -66,8 +60,12 @@ import {
   Expression
 } from './util';
 
-export var METADATA_CACHE_MODULE_REF =
-    moduleRef('package:angular2/src/core/linker/resolved_metadata_cache' + MODULE_SUFFIX);
+var HOST_VIEW_FACTORY_IDENTIFIER = new CompileIdentifierMetadata({
+  name: 'HostViewFactory',
+  moduleUrl: APP_VIEW_MODULE_URL,
+  runtime: HostViewFactory
+});
+
 
 /**
  * An internal module of the Angular compiler that begins with component types,
@@ -83,9 +81,7 @@ export class TemplateCompiler {
   constructor(private _runtimeMetadataResolver: RuntimeMetadataResolver,
               private _templateNormalizer: TemplateNormalizer,
               private _templateParser: TemplateParser, private _styleCompiler: StyleCompiler,
-              private _cdCompiler: ChangeDetectionCompiler,
-              private _protoViewCompiler: ProtoViewCompiler, private _viewCompiler: ViewCompiler,
-              private _resolvedMetadataCache: ResolvedMetadataCache,
+              private _viewCompiler: ViewCompiler,
               private _genConfig: ChangeDetectorGenConfig) {}
 
   normalizeDirectiveMetadata(directive: CompileDirectiveMetadata):
@@ -109,6 +105,10 @@ export class TemplateCompiler {
                 hostProperties: directive.hostProperties,
                 hostAttributes: directive.hostAttributes,
                 lifecycleHooks: directive.lifecycleHooks,
+                providers: directive.providers,
+                viewProviders: directive.viewProviders,
+                queries: directive.queries,
+                viewQueries: directive.viewQueries,
                 template: normalizedTemplate
               }));
   }
@@ -138,36 +138,44 @@ export class TemplateCompiler {
     this._hostCacheKeys.clear();
   }
 
-  compileTemplatesCodeGen(components: NormalizedComponentWithViewDirectives[]): SourceModule {
+  compileTemplatesCodeGen(components: NormalizedComponentWithViewDirectives[]): SourceWithImports {
     if (components.length === 0) {
       throw new BaseException('No components given');
     }
+    var identifierStore = new IdentifierStore();
     var declarations = [];
     components.forEach(componentWithDirs => {
       var compMeta = <CompileDirectiveMetadata>componentWithDirs.component;
       assertComponent(compMeta);
       this._compileComponentCodeGen(compMeta, componentWithDirs.directives, componentWithDirs.pipes,
-                                    declarations);
+                                    declarations, identifierStore);
       if (compMeta.dynamicLoadable) {
         var hostMeta = createHostComponentMeta(compMeta.type, compMeta.selector);
         var viewFactoryExpression =
-            this._compileComponentCodeGen(hostMeta, [compMeta], [], declarations);
+            this._compileComponentCodeGen(hostMeta, [compMeta], [], declarations, identifierStore);
         var constructionKeyword = IS_DART ? 'const' : 'new';
         var compiledTemplateExpr =
-            `${constructionKeyword} ${APP_VIEW_MODULE_REF}HostViewFactory('${compMeta.selector}',${viewFactoryExpression})`;
+            `${constructionKeyword} ${identifierStore.store(HOST_VIEW_FACTORY_IDENTIFIER)}('${compMeta.selector}',${viewFactoryExpression})`;
         var varName = codeGenHostViewFactoryName(compMeta.type);
         declarations.push(`${codeGenExportVariable(varName)}${compiledTemplateExpr};`);
       }
     });
     var moduleUrl = components[0].component.type.moduleUrl;
-    return new SourceModule(`${templateModuleUrl(moduleUrl)}`, declarations.join('\n'));
+    return identifierStore.codegenSourceWithIdentifiers(
+      new SourceModule(templateModuleUrl(moduleUrl), declarations.join('\n'))
+    );
   }
 
-  compileStylesheetCodeGen(stylesheetUrl: string, cssText: string): SourceModule[] {
-    return this._styleCompiler.compileStylesheetCodeGen(stylesheetUrl, cssText);
+  compileStylesheetCodeGen(stylesheetUrl: string, cssText: string): SourceWithImports[] {
+    var identifierStorePlain = new IdentifierStore();
+    var sourceModulePlain = this._styleCompiler.compileStylesheetCodeGen(stylesheetUrl, cssText, identifierStorePlain);
+    var identifierStoreShim = new IdentifierStore();
+    var sourceModuleShim = this._styleCompiler.compileStylesheetCodeGen(stylesheetUrl, cssText, identifierStoreShim);
+    return [
+      identifierStorePlain.codegenSourceWithIdentifiers(sourceModulePlain),
+      identifierStoreShim.codegenSourceWithIdentifiers(sourceModuleShim)
+    ];
   }
-
-
 
   private _compileComponentRuntime(cacheKey: any, compMeta: CompileDirectiveMetadata,
                                    viewDirectives: CompileDirectiveMetadata[],
@@ -234,34 +242,35 @@ export class TemplateCompiler {
                                     directives: CompileDirectiveMetadata[], styles: string[],
                                     pipes: CompilePipeMetadata[]): Function {
     if (IS_DART || !this._genConfig.useJit) {
-      var changeDetectorFactories = this._cdCompiler.compileComponentRuntime(
-          compMeta.type, compMeta.changeDetection, parsedTemplate);
-      var protoViews = this._protoViewCompiler.compileProtoViewRuntime(
-          this._resolvedMetadataCache, compMeta, parsedTemplate, pipes);
-      return this._viewCompiler.compileComponentRuntime(
-          compMeta, parsedTemplate, styles, protoViews.protoViews, changeDetectorFactories,
-          (compMeta) => this._getNestedComponentViewFactory(compMeta));
-    } else {
-      var declarations = [];
-      var viewFactoryExpr = this._createViewFactoryCodeGen('resolvedMetadataCache', compMeta,
-                                                           new SourceExpression([], 'styles'),
-                                                           parsedTemplate, pipes, declarations);
-      var vars: {[key: string]: any} =
-          {'exports': {}, 'styles': styles, 'resolvedMetadataCache': this._resolvedMetadataCache};
-      directives.forEach(dirMeta => {
-        vars[dirMeta.type.name] = dirMeta.type.runtime;
-        if (dirMeta.isComponent && dirMeta.type.runtime !== compMeta.type.runtime) {
-          vars[`viewFactory_${dirMeta.type.name}0`] = this._getNestedComponentViewFactory(dirMeta);
-        }
-      });
-      pipes.forEach(pipeMeta => vars[pipeMeta.type.name] = pipeMeta.type.runtime);
-      var declarationsWithoutImports =
-          SourceModule.getSourceWithoutImports(declarations.join('\n'));
-      return evalExpression(
-          `viewFactory_${compMeta.type.name}`, viewFactoryExpr, declarationsWithoutImports,
-          mergeStringMaps(
-              [vars, CHANGE_DETECTION_JIT_IMPORTS, PROTO_VIEW_JIT_IMPORTS, VIEW_JIT_IMPORTS]));
+      throw new BaseException('JIT mode is not supported in Dart!')
     }
+    var identifierStore = new IdentifierStore();
+    var declarations = [];
+    var vars: {[key: string]: any} =
+        {'exports': {}, 'styles': styles};
+    var nestedComponentViewFactory = (nestedComp: CompileDirectiveMetadata, identifierStore: IdentifierStore) => {
+      var factoryName = `viewFactory_${stringify(nestedComp.type.runtime)}0`;
+      if (nestedComp.type.runtime === compMeta.type.runtime) {
+        return factoryName;
+      } else {
+        var identifier = new CompileIdentifierMetadata({
+          runtime: this._compiledTemplateCache.get(nestedComp.type.runtime).viewFactory,
+          name: factoryName
+        });
+        return identifierStore.store(identifier);
+      }
+    };
+    var viewFactoryExpr = this._createViewFactoryCodeGen(compMeta,
+                                                          new SourceExpression([], 'styles'),
+                                                          parsedTemplate, pipes, declarations,
+                                                          nestedComponentViewFactory,
+                                                          identifierStore);
+    var jitSource = identifierStore.jitSourceWithIdentifiers(declarations.join('\n'));
+
+    return evalExpression(
+        `viewFactory_${compMeta.type.name}`, viewFactoryExpr, jitSource.source,
+        mergeStringMaps(
+            [vars, jitSource.vars]));
   }
 
   private _getNestedComponentViewFactory(compMeta: CompileDirectiveMetadata): Function {
@@ -271,34 +280,28 @@ export class TemplateCompiler {
   private _compileComponentCodeGen(compMeta: CompileDirectiveMetadata,
                                    directives: CompileDirectiveMetadata[],
                                    pipes: CompilePipeMetadata[],
-                                   targetDeclarations: string[]): string {
+                                   targetDeclarations: string[],
+                                   identifierStore: IdentifierStore): string {
     let uniqueDirectives = <CompileDirectiveMetadata[]>removeDuplicates(directives);
     let uniqPipes = <CompilePipeMetadata[]>removeDuplicates(pipes);
-    var styleExpr = this._styleCompiler.compileComponentCodeGen(compMeta.template);
+    var styleExpr = this._styleCompiler.compileComponentCodeGen(compMeta.template, identifierStore);
     var parsedTemplate = this._templateParser.parse(compMeta.template.template, uniqueDirectives,
                                                     uniqPipes, compMeta.type.name);
     var filteredPipes = filterPipes(parsedTemplate, uniqPipes);
     return this._createViewFactoryCodeGen(
-        `${METADATA_CACHE_MODULE_REF}CODEGEN_RESOLVED_METADATA_CACHE`, compMeta, styleExpr,
-        parsedTemplate, filteredPipes, targetDeclarations);
+        compMeta, styleExpr,
+        parsedTemplate, filteredPipes, targetDeclarations, codeGenComponentViewFactoryName, identifierStore);
   }
 
-  private _createViewFactoryCodeGen(resolvedMetadataCacheExpr: string,
-                                    compMeta: CompileDirectiveMetadata, styleExpr: SourceExpression,
+  private _createViewFactoryCodeGen(compMeta: CompileDirectiveMetadata, styleExpr: SourceExpression,
                                     parsedTemplate: TemplateAst[], pipes: CompilePipeMetadata[],
-                                    targetDeclarations: string[]): string {
-    var changeDetectorsExprs = this._cdCompiler.compileComponentCodeGen(
-        compMeta.type, compMeta.changeDetection, parsedTemplate);
-    var protoViewExprs = this._protoViewCompiler.compileProtoViewCodeGen(
-        new Expression(resolvedMetadataCacheExpr), compMeta, parsedTemplate, pipes);
+                                    targetDeclarations: string[],
+                                    componentViewFactory: Function,
+                                    identifierStore: IdentifierStore): string {
     var viewFactoryExpr = this._viewCompiler.compileComponentCodeGen(
-        compMeta, parsedTemplate, styleExpr, protoViewExprs.protoViews, changeDetectorsExprs,
-        codeGenComponentViewFactoryName);
-
-    addAll(changeDetectorsExprs.declarations, targetDeclarations);
-    addAll(protoViewExprs.declarations, targetDeclarations);
+        compMeta, parsedTemplate, styleExpr, pipes,
+        componentViewFactory, identifierStore);
     addAll(viewFactoryExpr.declarations, targetDeclarations);
-
     return viewFactoryExpr.expression;
   }
 }
@@ -329,8 +332,13 @@ function codeGenHostViewFactoryName(type: CompileTypeMetadata): string {
   return `hostViewFactory_${type.name}`;
 }
 
-function codeGenComponentViewFactoryName(nestedCompType: CompileDirectiveMetadata): string {
-  return `${moduleRef(templateModuleUrl(nestedCompType.type.moduleUrl))}viewFactory_${nestedCompType.type.name}0`;
+function codeGenComponentViewFactoryName(nestedCompType: CompileDirectiveMetadata, identifierStore: IdentifierStore): string {
+  var identifier = new CompileIdentifierMetadata({
+    name: `viewFactory_${nestedCompType.type.name}0`,
+    moduleUrl: templateModuleUrl(nestedCompType.type.moduleUrl),
+    runtime: null
+  });
+  return identifierStore.store(identifier);
 }
 
 function mergeStringMaps(maps: Array<{[key: string]: any}>): {[key: string]: any} {

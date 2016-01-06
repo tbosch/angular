@@ -4,27 +4,40 @@ import {DirectiveProvider} from './element';
 import {DirectiveResolver, CODEGEN_DIRECTIVE_RESOLVER} from './directive_resolver';
 import {PipeProvider} from '../pipes/pipe_provider';
 import {PipeResolver, CODEGEN_PIPE_RESOLVER} from './pipe_resolver';
+import {
+  DirectiveMetadata,
+  ComponentMetadata,
+  InputMetadata,
+  OutputMetadata,
+  HostBindingMetadata,
+  HostListenerMetadata,
+  ContentChildrenMetadata,
+  ViewChildrenMetadata,
+  ContentChildMetadata,
+  ViewChildMetadata,
+  PipeMetadata
+} from 'angular2/src/core/metadata';
 
 @Injectable()
 export class ResolvedMetadataCache {
-  private _directiveCache: Map<Type, DirectiveProvider> = new Map<Type, DirectiveProvider>();
-  private _pipeCache: Map<Type, PipeProvider> = new Map<Type, PipeProvider>();
+  private _directiveCache: Map<Type, DirectiveMetadata> = new Map<Type, DirectiveMetadata>();
+  private _pipeCache: Map<Type, PipeMetadata> = new Map<Type, PipeMetadata>();
 
   constructor(private _directiveResolver: DirectiveResolver, private _pipeResolver: PipeResolver) {}
 
-  getResolvedDirectiveMetadata(type: Type): DirectiveProvider {
+  getResolvedDirectiveMetadata(type: Type): DirectiveMetadata {
     var result = this._directiveCache.get(type);
     if (isBlank(result)) {
-      result = DirectiveProvider.createFromType(type, this._directiveResolver.resolve(type));
+      result = this._directiveResolver.resolve(type);
       this._directiveCache.set(type, result);
     }
     return result;
   }
 
-  getResolvedPipeMetadata(type: Type): PipeProvider {
+  getResolvedPipeMetadata(type: Type): PipeMetadata {
     var result = this._pipeCache.get(type);
     if (isBlank(result)) {
-      result = PipeProvider.createFromType(type, this._pipeResolver.resolve(type));
+      result = this._pipeResolver.resolve(type);
       this._pipeCache.set(type, result);
     }
     return result;

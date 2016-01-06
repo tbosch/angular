@@ -27,8 +27,7 @@ import {
 import {
   SourceModule,
   SourceExpression,
-  SourceExpressions,
-  moduleRef
+  SourceExpressions
 } from 'angular2/src/compiler/source_module';
 
 import {TemplateParser} from 'angular2/src/compiler/template_parser';
@@ -52,7 +51,7 @@ import {codeGenValueFn, codeGenExportVariable, MODULE_SUFFIX} from 'angular2/src
 // Attention: These module names have to correspond to real modules!
 var THIS_MODULE_ID = 'angular2/test/compiler/change_detector_compiler_spec';
 var THIS_MODULE_URL = `package:${THIS_MODULE_ID}${MODULE_SUFFIX}`;
-var THIS_MODULE_REF = moduleRef(THIS_MODULE_URL);
+// var THIS_MODULE_REF = moduleRef(THIS_MODULE_URL);
 
 export function main() {
   describe('ChangeDetectorCompiler', () => {

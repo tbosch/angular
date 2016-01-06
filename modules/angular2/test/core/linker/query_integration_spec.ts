@@ -99,8 +99,6 @@ export function main() {
                  view.debugElement.componentInstance.shouldShow = false;
                  view.detectChanges();
 
-                 // TODO: this fails right now!
-                 // -> queries are not dirtied!
                  expect(q.log).toEqual([
                    ["setter", "foo"],
                    ["init", "foo"],
@@ -386,7 +384,7 @@ export function main() {
                });
          }));
 
-      it('should reflect dynamically inserted directives',
+      it('should support dynamically inserted directives',
          inject([TestComponentBuilder, AsyncTestCompleter], (tcb: TestComponentBuilder, async) => {
            var template = '<needs-query-by-var-binding #q>' +
                           '<div *ngFor="#item of list" [text]="item" #textLabel="textDir"></div>' +
@@ -403,6 +401,7 @@ export function main() {
 
                  view.debugElement.componentInstance.list = ['2d', '1d'];
 
+                 debugger;
                  view.detectChanges();
 
                  expect(q.query.last.text).toEqual("1d");

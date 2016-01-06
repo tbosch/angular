@@ -265,7 +265,28 @@ export class ListWrapper {
     }
     return solution;
   }
+
+  static flatten<T>(list: Array<T | T[]>): T[] {
+    var target = [];
+    _flattenArray(list, target);
+    return target;
+  }
 }
+
+function _flattenArray(source: any[], target: any[]): any[] {
+  if (isPresent(source)) {
+    for (var i = 0; i < source.length; i++) {
+      var item = source[i];
+      if (isArray(item)) {
+        _flattenArray(item, target);
+      } else {
+        target.push(item);
+      }
+    }
+  }
+  return target;
+}
+
 
 export function isListLikeIterable(obj: any): boolean {
   if (!isJsObject(obj)) return false;

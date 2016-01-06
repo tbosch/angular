@@ -28,7 +28,7 @@ import {
 } from 'angular2/src/compiler/template_compiler';
 import {CompileDirectiveMetadata} from 'angular2/src/compiler/directive_metadata';
 import {evalModule} from './eval_module';
-import {SourceModule, moduleRef} from 'angular2/src/compiler/source_module';
+import {SourceModule} from 'angular2/src/compiler/source_module';
 import {XHR} from 'angular2/src/compiler/xhr';
 import {MockXHR} from 'angular2/src/compiler/xhr_mock';
 import {SpyRootRenderer, SpyRenderer, SpyAppViewManager} from '../core/spies';
@@ -51,11 +51,11 @@ import {PipeTransform, WrappedValue, Injectable, Pipe} from 'angular2/core';
 
 // Attention: This path has to point to this test file!
 const THIS_MODULE_ID = 'angular2/test/compiler/template_compiler_spec';
-var THIS_MODULE_REF = moduleRef(`package:${THIS_MODULE_ID}${MODULE_SUFFIX}`);
-var REFLECTOR_MODULE_REF =
-    moduleRef(`package:angular2/src/core/reflection/reflection${MODULE_SUFFIX}`);
-var REFLECTION_CAPS_MODULE_REF =
-    moduleRef(`package:angular2/src/core/reflection/reflection_capabilities${MODULE_SUFFIX}`);
+// var THIS_MODULE_REF = moduleRef(`package:${THIS_MODULE_ID}${MODULE_SUFFIX}`);
+// var REFLECTOR_MODULE_REF =
+//     moduleRef(`package:angular2/src/core/reflection/reflection${MODULE_SUFFIX}`);
+// var REFLECTION_CAPS_MODULE_REF =
+//     moduleRef(`package:angular2/src/core/reflection/reflection_capabilities${MODULE_SUFFIX}`);
 
 export function main() {
   describe('TemplateCompiler', () => {
@@ -407,7 +407,7 @@ export class CompWith2NestedComps {
 function testableTemplateModule(sourceModule: SourceModule,
                                 normComp: CompileDirectiveMetadata): SourceModule {
   var testableSource = `
-  ${sourceModule.sourceWithModuleRefs}
+  ${sourceModule.sourceWithIdentifierRefs}
   ${codeGenFnHeader(['_'], '_run')}{
     ${REFLECTOR_MODULE_REF}reflector.reflectionCapabilities = new ${REFLECTION_CAPS_MODULE_REF}ReflectionCapabilities();
     return ${THIS_MODULE_REF}humanizeViewFactory(hostViewFactory_${normComp.type.name}.viewFactory);
@@ -417,7 +417,7 @@ function testableTemplateModule(sourceModule: SourceModule,
 }
 
 function testableStylesModule(sourceModule: SourceModule): SourceModule {
-  var testableSource = `${sourceModule.sourceWithModuleRefs}
+  var testableSource = `${sourceModule.sourceWithIdentifierRefs}
   ${codeGenValueFn(['_'], 'STYLES', '_run')};
   ${codeGenExportVariable('run')}_run;`;
   return new SourceModule(sourceModule.moduleUrl, testableSource);
